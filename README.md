@@ -1,7 +1,7 @@
 # @photostructure/knex-sqlite
 
 [![npm version](https://img.shields.io/npm/v/@photostructure/knex-sqlite.svg)](https://www.npmjs.com/package/@photostructure/knex-sqlite)
-[![license](https://img.shields.io/npm/l/@photostructure/knex-sqlite.svg)](https://github.com/photostructure/knex-sqlite/blob/main/LICENSE)
+[![CI](https://github.com/photostructure/knex-sqlite/actions/workflows/build.yml/badge.svg)](https://github.com/photostructure/knex-sqlite/actions/workflows/build.yml)
 
 [Knex.js](https://knexjs.org/) dialect for
 [@photostructure/sqlite](https://github.com/photostructure/node-sqlite).
