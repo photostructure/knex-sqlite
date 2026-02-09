@@ -76,6 +76,9 @@ jobs:
       - name: Run tests before publishing
         run: npm test
 
+      - name: Restore clean working tree before version bump
+        run: git checkout -- .
+
       - name: Bump version and create tag
         run: |
           VERSION_ARG="${{ github.event.inputs.version }}"
