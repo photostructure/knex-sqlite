@@ -8,8 +8,22 @@ const Client_PhotoStructureSQLite = require("./index");
 const dbPath = "./test.db";
 
 async function cleanup() {
-  if (existsSync(dbPath)) {
-    await unlink(dbPath);
+  if (!existsSync(dbPath)) return;
+
+  // Retry logic for Windows file locking issues
+  const maxRetries = 5;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      await unlink(dbPath);
+      return;
+    } catch (err) {
+      if (err.code === 'EBUSY' && i < maxRetries - 1) {
+        // Wait before retry, with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, 50 * Math.pow(2, i)));
+        continue;
+      }
+      throw err;
+    }
   }
 }
 
@@ -28,6 +42,8 @@ describe("@photostructure/knex-sqlite", () => {
 
   after(async () => {
     await db.destroy();
+    // Small delay to ensure database file is fully released on Windows
+    await new Promise(resolve => setTimeout(resolve, 100));
     await cleanup();
   });
 
