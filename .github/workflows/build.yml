@@ -67,18 +67,6 @@ jobs:
           npm install -g npm@latest
           npm --version
 
-      - name: Install dependencies
-        run: npm install
-      # Install peer dependency from npm registry (local devDep uses file: reference)
-      - name: Install @photostructure/sqlite
-        run: npm install --no-save @photostructure/sqlite@latest
-
-      - name: Run tests before publishing
-        run: npm test
-
-      - name: Restore clean working tree before version bump
-        run: git checkout -- .
-
       - name: Bump version and create tag
         run: |
           VERSION_ARG="${{ github.event.inputs.version }}"
