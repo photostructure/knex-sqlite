@@ -28,11 +28,11 @@ jobs:
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: ${{ matrix.node-version }}
-      # Replace local file: devDependency with npm registry version for CI
       - name: Install dependencies
-        run: |
-          npm pkg set "devDependencies.@photostructure/sqlite=>=0.5.0"
-          npm install
+        run: npm install
+      # Install peer dependency from npm registry (local devDep uses file: reference)
+      - name: Install @photostructure/sqlite
+        run: npm install --no-save @photostructure/sqlite@latest
       - run: npm test
 
   publish:
@@ -68,15 +68,13 @@ jobs:
           npm --version
 
       - name: Install dependencies
-        run: |
-          npm pkg set "devDependencies.@photostructure/sqlite=>=0.5.0"
-          npm install
+        run: npm install
+      # Install peer dependency from npm registry (local devDep uses file: reference)
+      - name: Install @photostructure/sqlite
+        run: npm install --no-save @photostructure/sqlite@latest
 
       - name: Run tests before publishing
         run: npm test
-
-      - name: Restore package.json before version bump
-        run: git checkout -- package.json package-lock.json
 
       - name: Bump version and create tag
         run: |
