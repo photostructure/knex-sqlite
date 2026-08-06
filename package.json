@@ -18,7 +18,8 @@
     "README.md"
   ],
   "scripts": {
-    "test": "node --test test.js"
+    "test": "node --test test.js",
+    "preflight": "npm test"
   },
   "keywords": [
     "knex",
