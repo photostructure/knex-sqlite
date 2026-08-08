@@ -1,4 +1,7 @@
-name: Build & Release
+name: Build & Prepare Release
+
+env:
+  CI: 1
 
 on:
   push:
@@ -8,83 +11,188 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version type (patch, minor, major, or specific version)"
-        required: false
-        type: string
+        description: Version bump
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: read
 
 jobs:
   build:
+    name: Test Node.js ${{ matrix.node-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
+    defaults:
+      run:
+        shell: bash
+
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
-        node-version: [20, 22, 24, 25]
+        node-version: [20, 22, 24, 26]
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Validate the manual release ref
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
+            echo "::error::Releases must be dispatched from $DEFAULT_BRANCH, not $GITHUB_REF"
+            exit 1
+          fi
+      - name: Checkout the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ matrix.node-version }}
-      - name: Install dependencies
-        run: npm install
-      # Install peer dependency from npm registry (local devDep uses file: reference)
-      - name: Install @photostructure/sqlite
-        run: npm install --no-save @photostructure/sqlite@latest
-      - run: npm test
+          package-manager-cache: false
+      - name: Install dependencies with the frozen lockfile
+        if: ${{ matrix.node-version == 24 || matrix.node-version == 26 }}
+        run: npm ci --ignore-scripts
+      - name: Install dependencies for an older compatibility lane
+        if: ${{ matrix.node-version == 20 || matrix.node-version == 22 }}
+        run: npm_config_force=true npm ci --ignore-scripts
+      - name: Test
+        # Invoke the test runner directly so npm_config_force remains scoped to
+        # the frozen install in older compatibility lanes.
+        run: node test.js
+      - name: Test the current peer major
+        if: ${{ matrix.node-version == 24 || matrix.node-version == 26 }}
+        run: | # zizmor: ignore[adhoc-packages] exact, cooldown-eligible peer
+          npm install --no-save --ignore-scripts @photostructure/sqlite@2.1.0
+          node test.js
+      - name: Verify the tested source stayed unchanged
+        run: git diff --exit-code
 
-  publish:
+  release:
+    name: Create signed release commit and tag
     runs-on: ubuntu-24.04
-    needs: [build]
+    needs: build
     if: ${{ github.event_name == 'workflow_dispatch' }}
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+    concurrency:
+      group: ${{ github.repository }}-release
+      cancel-in-progress: false
+      queue: single
     permissions:
-      id-token: write # Required for OIDC trusted publishing
-      contents: write # Required to push tags and create releases
+      contents: write # Push the release commit and signed tag.
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Checkout the tested commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0 # Need full history for version tags
-          lfs: true
+          fetch-depth: 0
+          # This isolated job must push the release commit and tag. It installs
+          # no dependencies and has no npm publishing authority.
+          persist-credentials: true
 
-      # setup-node with registry-url is required for OIDC trusted publishing
-      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+      - name: Verify the release source
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
+            echo "::error::Releases must be dispatched from $DEFAULT_BRANCH, not $GITHUB_REF"
+            exit 1
+          fi
+          git fetch --no-tags origin "$DEFAULT_BRANCH"
+          if [[ "$(git rev-parse "origin/$DEFAULT_BRANCH")" != "$GITHUB_SHA" ]]; then
+            echo "::error::$DEFAULT_BRANCH moved after this release run started; run it again"
+            exit 1
+          fi
+
+      - name: Install the release Node.js toolchain
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 20
-          cache: "npm"
-          registry-url: "https://registry.npmjs.org"
+          node-version: 24.19.0
+          package-manager-cache: false
 
       - name: Set up SSH signing
-        uses: photostructure/git-ssh-signing-action@fdd4b062a9ba41473f013258cc9c7eea1640f826 # v1.2.0
+        uses: photostructure/git-ssh-signing-action@abd2a642ab7d704f66193472b47c72375d85a0c1 # v2.0.1
         with:
           ssh-signing-key: ${{ secrets.SSH_SIGNING_KEY }}
           git-user-name: ${{ secrets.GIT_USER_NAME }}
           git-user-email: ${{ secrets.GIT_USER_EMAIL }}
 
-      - name: Update npm to latest to get --provenance support
-        run: |
-          npm install -g npm@latest
-          npm --version
-
-      - name: Bump version and create tag
-        run: |
-          VERSION_ARG="${{ github.event.inputs.version }}"
-          if [ -z "$VERSION_ARG" ]; then
-            VERSION_ARG="patch"
-          fi
-          npm version "$VERSION_ARG" --sign-git-tag -m "chore(release): %s"
-          echo "NEW_VERSION=$(npm pkg get version | tr -d '\"')" >> $GITHUB_ENV
-
-      - name: Push changes and tags
-        run: |
-          git push origin main
-          git push origin --tags
-
-      - name: Create GitHub Release
-        run: gh release create "v${{ env.NEW_VERSION }}" --generate-notes
+      - name: Bump the package version
+        id: version
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BUMP: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
 
-      - name: Publish to npm with OIDC
-        run: npm publish --provenance
+          case "$BUMP" in
+            patch|minor|major) ;;
+            *)
+              echo "::error::Unsupported version bump: $BUMP"
+              exit 1
+              ;;
+          esac
+
+          npm version "$BUMP" --no-git-tag-version --ignore-scripts
+
+          if ! git diff --quiet -- . \
+            ':(exclude)package.json' \
+            ':(exclude)package-lock.json'; then
+            echo "::error::The version bump changed unexpected files"
+            git diff --name-only
+            exit 1
+          fi
+
+          VERSION="$(node -p "require('./package.json').version")"
+          node -e '
+            const pkg = require("./package.json")
+            const lock = require("./package-lock.json")
+            if (lock.version !== pkg.version || lock.packages[""].version !== pkg.version) {
+              throw new Error("package.json and package-lock.json versions do not match")
+            }
+          '
+          if ! grep -Fq "## [$VERSION]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no release heading for $VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create the signed release commit and tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git add package.json package-lock.json
+          git commit -m "Release $VERSION"
+          git tag -m "Release $VERSION" "$TAG"
+
+      - name: Push the commit and tag atomically
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git push --atomic origin \
+            "HEAD:refs/heads/$DEFAULT_BRANCH" \
+            "refs/tags/$TAG"
+
+  dispatch:
+    name: Start tag-bound publishing
+    runs-on: ubuntu-24.04
+    needs: release
+    permissions:
+      actions: write # Dispatch publish.yaml at the newly created tag.
+    steps:
+      - name: Start the tag-bound publishing workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: gh workflow run publish.yaml --repo "$GITHUB_REPOSITORY" --ref "$TAG"

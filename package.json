@@ -18,8 +18,9 @@
     "README.md"
   ],
   "scripts": {
-    "test": "node --test test.js",
-    "preflight": "npm test"
+    "test": "node test.js",
+    "update:deps": "npm-check-updates --dep dev --upgrade --install always",
+    "preflight": "npm install && npm run update:deps && npm test"
   },
   "keywords": [
     "knex",
@@ -44,6 +45,13 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "devEngines": {
+    "packageManager": {
+      "name": "npm",
+      "version": ">=11.10.0",
+      "onFail": "error"
+    }
+  },
   "publishConfig": {
     "access": "public"
   },
@@ -52,7 +60,8 @@
     "knex": ">=3.0.0"
   },
   "devDependencies": {
-    "@photostructure/sqlite": ">=1.1.0",
-    "knex": "~3.2.9"
+    "@photostructure/sqlite": "1.1.0",
+    "knex": "3.3.0",
+    "npm-check-updates": "22.2.9"
   }
 }

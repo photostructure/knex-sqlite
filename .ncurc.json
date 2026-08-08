@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/raineorshine/npm-check-updates/main/src/types/RunOptions.json",
+  "removeRange": true,
+  "cooldown": 14,
+  "reject": [
+    "@photostructure/sqlite",
+    "@photostructure/sqlite why: version 1.1.0 preserves the Node.js 20 compatibility lane"
+  ]
+}
