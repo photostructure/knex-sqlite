@@ -1,40 +1,20 @@
 const { describe, test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
-const { unlink } = require("node:fs/promises");
-const { existsSync } = require("node:fs");
+const { mkdtemp, rm } = require("node:fs/promises");
+const { tmpdir } = require("node:os");
+const { join } = require("node:path");
 const knex = require("knex");
 const Client_PhotoStructureSQLite = require("./index");
 
-const dbPath = "./test.db";
-
-async function cleanup() {
-  if (!existsSync(dbPath)) return;
-
-  // Retry logic for Windows file locking issues
-  const maxRetries = 5;
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      await unlink(dbPath);
-      return;
-    } catch (err) {
-      if (err.code === 'EBUSY' && i < maxRetries - 1) {
-        // Wait before retry, with exponential backoff
-        await new Promise(resolve => setTimeout(resolve, 50 * Math.pow(2, i)));
-        continue;
-      }
-      throw err;
-    }
-  }
-}
-
 describe("@photostructure/knex-sqlite", () => {
+  let dbDir;
   let db;
 
   before(async () => {
-    await cleanup();
+    dbDir = await mkdtemp(join(tmpdir(), "knex-sqlite-"));
     db = knex({
       client: Client_PhotoStructureSQLite,
-      connection: { filename: dbPath },
+      connection: { filename: join(dbDir, "test.db") },
       useNullAsDefault: true,
       debug: false,
     });
@@ -42,9 +22,18 @@ describe("@photostructure/knex-sqlite", () => {
 
   after(async () => {
     await db.destroy();
-    // Small delay to ensure database file is fully released on Windows
-    await new Promise(resolve => setTimeout(resolve, 100));
-    await cleanup();
+    // Deleting the database doubles as a regression check. Windows refuses to
+    // unlink a file that still has an open handle, so an EBUSY here means
+    // destroy() left the SQLite connection open -- exactly what happened when
+    // the peer finalized prepared statements at GC instead of at close(), and
+    // the reason peerDependencies now floors at 2.0.0. The retries absorb
+    // transient virus-scanner locks; a persistent one should fail the run.
+    await rm(dbDir, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 100,
+    });
   });
 
   describe("Schema & CRUD", () => {

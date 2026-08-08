@@ -36,7 +36,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        node-version: [20, 22, 24, 26]
+        node-version: [22, 24, 26]
 
     steps:
       - name: Validate the manual release ref
@@ -58,19 +58,26 @@ jobs:
           node-version: ${{ matrix.node-version }}
           package-manager-cache: false
       - name: Install dependencies with the frozen lockfile
-        if: ${{ matrix.node-version == 24 || matrix.node-version == 26 }}
+        if: ${{ matrix.node-version != 22 }}
         run: npm ci --ignore-scripts
-      - name: Install dependencies for an older compatibility lane
-        if: ${{ matrix.node-version == 20 || matrix.node-version == 22 }}
+      - name: Install dependencies with the npm bundled with Node.js 22
+        # Node.js 22 still bundles npm 10.9, which is below the devEngines
+        # floor and refuses to install without being forced. The lockfile
+        # pins every resolution either way.
+        if: ${{ matrix.node-version == 22 }}
         run: npm_config_force=true npm ci --ignore-scripts
       - name: Test
-        # Invoke the test runner directly so npm_config_force remains scoped to
-        # the frozen install in older compatibility lanes.
+        # Invoke the test runner directly so npm_config_force stays scoped to
+        # the install above.
         run: node test.js
-      - name: Test the current peer major
-        if: ${{ matrix.node-version == 24 || matrix.node-version == 26 }}
+      - name: Test the oldest supported peer
+        # Keeps the peerDependencies floor honest: the lockfile tracks the
+        # newest peer, so nothing else would catch a change that quietly
+        # requires more than the declared minimum. Runs on a lane whose
+        # bundled npm clears devEngines, so this install needs no forcing.
+        if: ${{ matrix.node-version == 24 }}
         run: | # zizmor: ignore[adhoc-packages] exact, cooldown-eligible peer
-          npm install --no-save --ignore-scripts @photostructure/sqlite@2.1.0
+          npm install --no-save --ignore-scripts @photostructure/sqlite@2.0.0
           node test.js
       - name: Verify the tested source stayed unchanged
         run: git diff --exit-code

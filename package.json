@@ -43,7 +43,7 @@
     "url": "https://github.com/photostructure/knex-sqlite/issues"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "devEngines": {
     "packageManager": {
@@ -56,11 +56,11 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@photostructure/sqlite": ">=0.5.0",
+    "@photostructure/sqlite": ">=2.0.0",
     "knex": ">=3.0.0"
   },
   "devDependencies": {
-    "@photostructure/sqlite": "1.1.0",
+    "@photostructure/sqlite": "2.2.0",
     "knex": "3.3.0",
     "npm-check-updates": "22.2.9"
   }

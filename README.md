@@ -104,9 +104,9 @@ three things:
 
 ## Requirements
 
-- Node.js >= 20.0.0
+- Node.js >= 22.0.0
 - `knex` >= 3.0.0
-- `@photostructure/sqlite` >= 0.5.0
+- `@photostructure/sqlite` >= 2.0.0
 
 ## License
 
