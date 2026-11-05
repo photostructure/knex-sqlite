@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- GitHub releases now wait for npm to serve the approved package, and carry
+  these release notes.
+
 ## [1.0.0] - 2026-08-08
 
 The stable public release of the existing API, with the raised platform
