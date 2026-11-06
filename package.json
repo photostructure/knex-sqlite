@@ -20,7 +20,8 @@
   "scripts": {
     "test": "node test.js",
     "update:deps": "npm-check-updates --dep dev --upgrade --install always",
-    "preflight": "npm install && npm run update:deps && npm test"
+    "test:peer-floor": "npm install --no-save --ignore-scripts @photostructure/sqlite@2.0.0 && node test.js",
+    "preflight": "npm install && npm run update:deps && npm test && (npm run test:peer-floor || (npm ci && exit 1)) && npm ci"
   },
   "keywords": [
     "knex",

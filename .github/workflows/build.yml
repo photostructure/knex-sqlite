@@ -67,10 +67,9 @@ jobs:
         # newest peer, so nothing else would catch a change that quietly
         # requires more than the declared minimum. Runs on a lane whose
         # bundled npm clears devEngines, so this install needs no forcing.
+        # `make preflight` runs the same script.
         if: ${{ matrix.node-version == 24 }}
-        run: | # zizmor: ignore[adhoc-packages] exact, cooldown-eligible peer
-          npm install --no-save --ignore-scripts @photostructure/sqlite@2.0.0
-          node test.js
+        run: npm run test:peer-floor
       - name: Verify the tested source stayed unchanged
         run: git diff --exit-code
 
