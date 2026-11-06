@@ -98,52 +98,10 @@ jobs:
           node-version: 24.22.2 # bundles npm 11.19.1; staged publishing needs >= 11.15
           package-manager-cache: false
       - name: Pack and verify the package
+        # build.yml runs the same script on every push to main.
         run: |
-          set -euo pipefail
-
-          mkdir package-artifact
-          npm pack --json --ignore-scripts \
-            --pack-destination package-artifact > package-artifact/PACK.json
-
-          mapfile -t TARBALLS < <(
-            find package-artifact -maxdepth 1 -type f -name '*.tgz'
-          )
-          if [[ "${#TARBALLS[@]}" -ne 1 ]]; then
-            echo "::error::Expected exactly one package tarball, found ${#TARBALLS[@]}"
-            exit 1
-          fi
-          TARBALL="${TARBALLS[0]}"
-
-          if [[ "$(jq 'length' package-artifact/PACK.json)" -ne 1 ]]; then
-            echo "::error::npm pack did not report exactly one package"
-            exit 1
-          fi
-          PACK_NAME="$(jq -r '.[0].name' package-artifact/PACK.json)"
-          PACK_VERSION="$(jq -r '.[0].version' package-artifact/PACK.json)"
-          PACK_FILENAME="$(jq -r '.[0].filename' package-artifact/PACK.json)"
-          if [[ "$PACK_NAME" != "$EXPECTED_PACKAGE_NAME" ||
-                "$PACK_VERSION" != "$EXPECTED_PACKAGE_VERSION" ||
-                "$PACK_FILENAME" != "$(basename "$TARBALL")" ]]; then
-            echo "::error::npm pack reported an unexpected package identity"
-            exit 1
-          fi
-
-          EMBEDDED_PACKAGE_JSON="$(tar -xOf "$TARBALL" package/package.json)"
-          EMBEDDED_NAME="$(jq -r '.name' <<< "$EMBEDDED_PACKAGE_JSON")"
-          EMBEDDED_VERSION="$(jq -r '.version' <<< "$EMBEDDED_PACKAGE_JSON")"
-          if [[ "$EMBEDDED_NAME" != "$EXPECTED_PACKAGE_NAME" ||
-                "$EMBEDDED_VERSION" != "$EXPECTED_PACKAGE_VERSION" ]]; then
-            echo "::error::The tarball contains an unexpected package identity"
-            exit 1
-          fi
-
-          tar -tzf "$TARBALL" | LC_ALL=C sort > package-artifact/CONTENTS.txt
-          EXPECTED_CONTENTS=$'package/LICENSE\npackage/README.md\npackage/index.d.ts\npackage/index.js\npackage/package.json'
-          if [[ "$(< package-artifact/CONTENTS.txt)" != "$EXPECTED_CONTENTS" ]]; then
-            echo "::error::The npm tarball does not contain exactly the approved files"
-            cat package-artifact/CONTENTS.txt
-            exit 1
-          fi
+          scripts/pack-verify.sh \
+            "$EXPECTED_PACKAGE_NAME" "$EXPECTED_PACKAGE_VERSION" package-artifact
       - name: Upload the exact package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

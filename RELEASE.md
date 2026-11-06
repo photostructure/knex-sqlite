@@ -55,7 +55,10 @@ When updating GitHub Action pins, use pinact 4.0 or later and run
 - `build.yml` (**Build & Prepare Release**) reads the version bump from the
   `## [Unreleased (patch|minor|major)]` heading in `CHANGELOG.md` while the
   test matrix runs, and fails with instructions if that heading is missing,
-  names no bump, or has no notes under it. Once both pass, it bumps the
+  names no bump, or has no notes under it. On every run it also packs the
+  tarball with `scripts/pack-verify.sh`, the script `publish.yaml` packs
+  with, and installs and loads it on Linux, macOS, and Windows with
+  `scripts/install-check.mjs`. Once all of these pass, it bumps the
   version, renames the heading to `## [X.Y.Z] - YYYY-MM-DD` with a new empty
   `## [Unreleased]` above it, adds the version's `[X.Y.Z]: <url>` link
   definition, pushes a signed release commit and annotated tag, and starts
