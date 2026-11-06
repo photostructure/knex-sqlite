@@ -144,10 +144,6 @@ jobs:
             cat package-artifact/CONTENTS.txt
             exit 1
           fi
-          (
-            cd package-artifact
-            sha256sum -- *.tgz > SHA256SUMS
-          )
       - name: Upload the exact package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -156,7 +152,6 @@ jobs:
             package-artifact/*.tgz
             package-artifact/PACK.json
             package-artifact/CONTENTS.txt
-            package-artifact/SHA256SUMS
           if-no-files-found: error
           retention-days: 1
 
@@ -221,11 +216,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          (
-            cd package-artifact
-            sha256sum --check SHA256SUMS
-          )
-
+          # download-artifact already failed the job if the artifact's digest
+          # changed since upload.
           mapfile -t TARBALLS < <(
             find package-artifact -maxdepth 1 -type f -name '*.tgz'
           )
