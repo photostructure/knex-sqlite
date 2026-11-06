@@ -1,5 +1,6 @@
 const { describe, test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
+const { existsSync } = require("node:fs");
 const { mkdtemp, rm } = require("node:fs/promises");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
@@ -115,6 +116,45 @@ describe("@photostructure/knex-sqlite", () => {
       });
       const count = await db("users").where("name", "Temp").del();
       assert.equal(count, 1);
+    });
+  });
+
+  describe("Connection options", () => {
+    test("readonly: true rejects writes", async () => {
+      const ro = knex({
+        client: Client_PhotoStructureSQLite,
+        connection: {
+          filename: join(dbDir, "test.db"),
+          options: { readonly: true },
+        },
+        useNullAsDefault: true,
+      });
+      try {
+        await assert.rejects(
+          () => ro("users").insert({ name: "RO", email: "ro@example.com" }),
+          /readonly/
+        );
+      } finally {
+        await ro.destroy();
+      }
+    });
+
+    test("readonly: true does not create a missing file", async () => {
+      const missing = join(dbDir, "missing.db");
+      const ro = knex({
+        client: Client_PhotoStructureSQLite,
+        connection: { filename: missing, options: { readonly: true } },
+        useNullAsDefault: true,
+      });
+      try {
+        await assert.rejects(
+          () => ro.raw("SELECT 1"),
+          /unable to open database file/
+        );
+      } finally {
+        await ro.destroy();
+      }
+      assert.equal(existsSync(missing), false);
     });
   });
 

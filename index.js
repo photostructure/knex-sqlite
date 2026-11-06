@@ -26,7 +26,7 @@ class Client_PhotoStructureSQLite extends Client_BetterSQLite3 {
     const db = new driver.DatabaseSync(
       this.connectionSettings.filename,
       {
-        readonly: !!options.readonly,
+        readOnly: !!options.readonly,
         readBigInts: !!options.safeIntegers,
       }
     );
